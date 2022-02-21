@@ -1,0 +1,145 @@
+ desc: Break tuner
+//    v1.00 
+//    Christopher Josephs for tuning breaks
+//    Tune your kick, snare and shakalaks midi break loops (normally shakalaks same pitch as snare too) by sending
+//    extra midi data out in the 96+ range with extra notes (so don't put anything above C6 in your sampler)
+//    I am using this to send dummy data to FluidPitch to do in scale pitchbends!
+
+/* GUI Controls:
+    on MIDI:     selects the MIDI channel for the trigger notes
+    Kick: tune the kick drum
+    Snare: tune the snare drum
+    Chakalaka: tune the chakalaka drums
+    Pass Through/Drop: not using this atm, but would be used to drop unneccessary notes
+    Other noteas: select to pass through or drop non-filtered notes
+
+    Out on MIDI: selects the MIDI channel for the output note 
+    slider7... slider19: how to tune each note
+*/
+
+in_pin:none
+out_pin:none
+
+slider1:0<0,16,1{Any channel,Channel 01,Channel 02,Channel 03,Channel 04,Channel 05,Channel 06,Channel 07,Channel 08,Channel 09,Channel 10,Channel 11,Channel 12,Channel 13,Channel 14,Channel 15,Channel 16}>on MIDI
+slider2:2<0,127,1{0: C-2,1: C#-2,2: D-2,3: D#-2,4: E-2,5: F-2,6: F#-2,7: G-2,8: G#-2,9: A-2,10: A#-2,11: B-2,12 }>Kick
+slider3:9<0,127,1{0: C-2,1: C#-2,2: D-2,3: D#-2,4: E-2,5: F-2,6: F#-2,7: G-2,8: G#-2,9: A-2,10: A#-2,11: B-2,12 }>Snare
+slider4:9<0,127,1{0: C-2,1: C#-2,2: D-2,3: D#-2,4: E-2,5: F-2,6: F#-2,7: G-2,8: G#-2,9: A-2,10: A#-2,11: B-2,12 }>Chakalaka
+slider5:0<0,1,1{Pass through,Drop}>Other notes
+
+slider6:0<0,1,1{Tune, Recombine}>Tune or Recombine
+
+slider7:0<0,16,1{As In Channel,Channel 01,Channel 02,Channel 03,Channel 04,Channel 05,Channel 06,Channel 07,Channel 08,Channel 09,Channel 10,Channel 11,Channel 12,Channel 13,Channel 14,Channel 15,Channel 16}>Out on MIDI
+slider8:0<0,2,1{0: kick, 1: snare, 2: chakalaka }>C
+slider9:0<0,2,1{0: kick, 1: snare, 2: chakalaka }>C#
+slider10:1<0,2,1{0 :kick, 1: snare, 2: chakalaka }>D
+slider11:0<0,2,1{0: kick, 1: snare, 2: chakalaka }>D#
+slider12:0<0,2,1{0: kick, 1: snare, 2: chakalaka }>E
+slider13:0<0,2,1{0: kick, 1: snare, 2: chakalaka }>F
+slider14:0<0,2,1{0: kick, 1: snare, 2: chakalaka }>F#
+slider15:0<0,2,1{0: kick, 1: snare, 2: chakalaka }>G
+slider16:0<0,2,1{0: kick, 1: snare, 2: chakalaka }>G#
+slider17:1<0,2,1{0: kick, 1: snare, 2: chakalaka }>A
+slider18:0<0,2,1{0: kick, 1: snare, 2: chakalaka }>A#
+slider19:0<0,2,1{0: kick, 1:snare, 2: chakalaka }>B
+
+// ==========================================================
+@serialize
+// ==========================================================
+
+    store_01 = file_var(0, in_channel);
+    store_02 = file_var(0, note_in);
+    store_03 = file_var(0, first_out);
+    store_04 = file_var(0, second_out);
+    store_05 = file_var(0, vel_scale);
+
+// ==========================================================
+@init
+// ==========================================================
+
+    ext_noinit   = 1;
+
+    CC_MSG   = 11;
+    AT_MSG   = 10;
+    NOTE_ON  = 09;
+    NOTE_OFF = 08;
+    
+    NO = 0; YES =1;
+    PASS = 0; DROP =1;
+    AS_IN = 0;
+    SEND = 1;
+    OFF = 0;
+    
+
+// -----------------------------------------------
+    in_channel      =   1;
+
+
+// ==========================================================
+@slider
+// ==========================================================
+    in_channel   = slider1;
+    low_note     = 0;
+    high_note    = 12;
+    other_notes  = slider5;
+
+    out_channel  = slider6;
+    note_type = 0;
+    note_type[0] = slider8;
+    note_type[1] = slider9;
+    note_type[2] = slider10;
+    note_type[3] = slider11;
+    note_type[4] = slider12;
+    note_type[5] = slider13;
+    note_type[6] = slider14;
+    note_type[7] = slider15;
+    note_type[8] = slider16;
+    note_type[9] = slider17;
+    note_type[10] = slider18;
+    note_type[11] = slider19;
+    type_tune = 12;
+    type_tune[0] = slider2;
+    type_tune[1] = slider3;
+    type_tune[2] = slider4;
+    what_do = slider6;
+// ==========================================================
+@block
+// ==========================================================
+
+    while (midirecv(mpos, msg1, msg23)) (
+        msg = (msg1 / 16) | 0;
+        msg_channel = 1 + msg1 - (msg * 16);    // 01 ... 16 
+        msg_num = msg23 & 127;
+        msg_value = (msg23 / 256) | 0;
+
+        note_received = (msg == NOTE_ON || msg == NOTE_OFF);
+
+        note_received ? (
+        // only interested in 12 notes starting at C--2 at the moment but could do more
+        what_do == 0 ? (
+            ((in_channel == 0 || in_channel == msg_channel) &&
+             (msg_num >= low_note && msg_num <= high_note)) ? (
+                out_channel == AS_IN ? (
+                    msg1  = msg * 16 + msg_channel-1; 
+                ):(
+                    msg1  = msg * 16 + out_channel-1;
+                );
+                drum_type = note_type[msg_num];
+                new_tuning = type_tune[drum_type];
+                (msg_num + 96) <= 127 ?
+                (
+                  msg23 = (msg_value * 256) + 96 + new_tuning; 
+                );
+                midisend(mpos, msg1, msg23);
+            )
+          ):(
+                          other_notes == PASS;
+                      );
+                  ):(
+                      midisend(mpos, msg1, msg23); // send on non-note MIDI messages
+                  );
+              ); 
+
+
+// =================================== END
+
+
